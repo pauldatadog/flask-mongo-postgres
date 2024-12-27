@@ -1,0 +1,91 @@
+version: '3.9'
+services:
+  flask-mongo:
+    build:
+      context: ./flask-mongodb
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - MONGO_URI=mongodb+srv://admin:<password>@ecommerce.eicva.mongodb.net/?retryWrites=true&w=majority&appName=Ecommerce
+      - DD_AGENT_HOST=datadog-agent
+      - DD_TRACE_AGENT_PORT=8126
+      - DD_ENV=development
+      - DD_VERSION=1.0.0
+      - DD_SERVICE=online-retail
+    # depends_on:
+    #   - mongo
+
+  flask-postgres:
+    build:
+      context: ./flask-postgres
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - FLASK_ENV=development
+      - POSTGRES_URI=postgresql://username:password@postgres:5432/ecommerce
+      - DD_AGENT_HOST=datadog-agent
+      - DD_TRACE_AGENT_PORT=8126
+      - DD_ENV=development
+      - DD_VERSION=1.0.1
+      - DD_SERVICE=online-retail
+    depends_on:
+      - postgres
+
+  # mongo:
+  #   image: mongo:latest
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongodb_data:/data/db
+  #     - ./init-mongo:/docker-entrypoint-initdb.d
+
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: username
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ecommerce
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_setup.sql:/docker-entrypoint-initdb.d/postgres_setup.sql
+
+  datadog:
+    container_name: datadog-agent
+    image: datadog/agent:latest
+    environment:
+      ## GLOBALS
+      - DD_API_KEY=<apikey>
+      - DD_TAGS=env:development
+      - DD_AC_EXCLUDE=name:datadog-agent # exclude this container from data collection
+      ## TAGS
+      - DD_DOCKER_LABELS_AS_TAGS=true
+      - DD_DOCKER_ENV_AS_TAGS=true
+      ## APM https://docs.datadoghq.com/agent/docker/apm/
+      - DD_APM_ENABLED=true
+      - DD_APM_NON_LOCAL_TRAFFIC=true
+      - DD_LOGS_ENABLED=true
+      - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true
+      - DD_AGENT_HOST=datadog-agent
+      ## LIVE PROCESSES https://docs.datadoghq.com/graphing/infrastructure/process/?tab=docker
+      - DD_PROCESS_AGENT_ENABLED=true
+      ## DOGSTATSD
+      - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
+    ports:
+      - 8126:8126/tcp # APM available from any host
+      - 8125:8125/udp # Dogstatsd
+    volumes:
+     - /var/run/docker.sock:/var/run/docker.sock:ro
+     - /proc/:/host/proc/:ro
+     - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
+     - /etc/passwd:/etc/passwd:ro # LIVE PROCESSES
+
+volumes:
+  # mongodb_data:
+  #   driver: local
+  postgres_data:
+    driver: local
